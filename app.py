@@ -183,6 +183,25 @@ def is_neutral_color(image):
         'saturation_variation': s_std,
         'background_type': background_type
     }
+    
+def check_image_size(uploaded_file):
+    try:
+        # Open the uploaded image using PIL
+        image = Image.open(uploaded_file)
+        
+        # Get the dimensions of the image
+        width, height = image.size
+        
+        # Check if the dimensions match the required size
+        if width == 1050 and height == 1500:
+            st.success("Image uploaded successfully!")
+            return True
+        else:
+            st.error("Uploaded Image Is Not 1050px by 1500px.", icon="🚨")
+            return False
+    except Exception as e:
+        st.error(f"Error processing the image: {e}")
+        return False
 
 # File upload section
 uploaded_file = st.file_uploader(
@@ -195,137 +214,139 @@ if uploaded_file is not None:
     try:
         start_time = time.time()
         
-        with st.spinner("Analyzing your photo..."):
-            # Load and validate image
-            pil_image = Image.open(uploaded_file)
-            
-            # Image size validation
-            width, height = pil_image.size
-            aspect_ratio = width / height
-            
-            if not (0.7 <= aspect_ratio <= 1.3):
-                st.warning("⚠️ Image aspect ratio should be close to 1:1 for optimal passport photos")
-            
-            # Convert PIL Image to numpy array
-            image_np = np.array(pil_image)
-            image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-            
-            # Create two columns for image display
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📸 Original Image")
-                st.image(image_np, use_column_width=True)
-            
-            # Make prediction
-            results = model(image_bgr, classes=[0, 27])
-            
-            # Process results
-            for r in results:
-                background_mask = np.ones(image_bgr.shape[:2], np.uint8) * 255
+        # Check image size
+        if check_image_size(uploaded_file):
+            with st.spinner("Analyzing your photo..."):
+                # Load and validate image
+                pil_image = Image.open(uploaded_file)
                 
-                for c in r:
-                    contour = c.masks.xy[0].astype(np.int32).reshape(-1, 1, 2)
-                    cv2.drawContours(background_mask, [contour], -1, 0, cv2.FILLED)
+                # Image size validation
+                width, height = pil_image.size
+                aspect_ratio = width / height
                 
-                background_mask_3ch = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
-                background_only = cv2.bitwise_and(image_bgr, background_mask_3ch)
-                background_only_rgb = cv2.cvtColor(background_only, cv2.COLOR_BGR2RGB)
+                if not (0.7 <= aspect_ratio <= 1.3):
+                    st.warning("⚠️ Image aspect ratio should be close to 1:1 for optimal passport photos")
                 
-                with col2:
-                    st.subheader("🎯 Detected Background")
-                    st.image(background_only_rgb, use_column_width=True)
+                # Convert PIL Image to numpy array
+                image_np = np.array(pil_image)
+                image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
                 
-                # Analyze background color
-                is_neutral, color_stats = is_neutral_color(background_only)
+                # Create two columns for image display
+                col1, col2 = st.columns(2)
                 
-                # Calculate processing time
-                processing_time = time.time() - start_time
+                with col1:
+                    st.subheader("📸 Original Image")
+                    st.image(image_np, use_column_width=True)
                 
-                # Display overall result first
-                st.header("📊 Analysis Results")
-                if is_neutral:
-                    st.success("✅ Background meets passport photo requirements!")
-                else:
-                    st.error("❌ Background does not meet passport photo requirements")
+                # Make prediction
+                results = model(image_bgr, classes=[0, 27])
                 
-                # Create three columns for stats
-                stat_cols = st.columns(3)
-                
-                # Background Type
-                with stat_cols[0]:
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <h3>🎨 Background Type</h3>
-                        <p>{color_stats['background_type'].capitalize()}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Brightness
-                with stat_cols[1]:
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <h3>💡 Brightness</h3>
-                        <p>{"Good" if color_stats['is_light'] else "Too Dark"}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Coverage
-                with stat_cols[2]:
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <h3>📏 Coverage</h3>
-                        <p>{color_stats['background_percentage']:.1f}%</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Detailed Analysis Expander
-                with st.expander("See Detailed Analysis"):
-                    st.markdown("### 🔍 Technical Details")
+                # Process results
+                for r in results:
+                    background_mask = np.ones(image_bgr.shape[:2], np.uint8) * 255
                     
-                    # RGB Values
-                    st.markdown("""
-                    <div class="metric-container">
-                        <p class="metric-label">RGB Color Values</p>
-                        <p class="metric-value">
-                    """, unsafe_allow_html=True)
-                    rgb_values = f"R={color_stats['mean_color'][2]:.1f}, G={color_stats['mean_color'][1]:.1f}, B={color_stats['mean_color'][0]:.1f}"
-                    st.code(rgb_values)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    for c in r:
+                        contour = c.masks.xy[0].astype(np.int32).reshape(-1, 1, 2)
+                        cv2.drawContours(background_mask, [contour], -1, 0, cv2.FILLED)
                     
-                    # Color Variation Metrics
-                    st.markdown("<p class='metric-label'>Color Uniformity Metrics</p>", unsafe_allow_html=True)
-                    metric_cols = st.columns(3)
+                    background_mask_3ch = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
+                    background_only = cv2.bitwise_and(image_bgr, background_mask_3ch)
+                    background_only_rgb = cv2.cvtColor(background_only, cv2.COLOR_BGR2RGB)
                     
-                    with metric_cols[0]:
+                    with col2:
+                        st.subheader("🎯 Detected Background")
+                        st.image(background_only_rgb, use_column_width=True)
+                    
+                    # Analyze background color
+                    is_neutral, color_stats = is_neutral_color(background_only)
+                    
+                    # Calculate processing time
+                    processing_time = time.time() - start_time
+                    
+                    # Display overall result first
+                    st.header("📊 Analysis Results")
+                    if is_neutral:
+                        st.success("✅ Background meets passport photo requirements!")
+                    else:
+                        st.error("❌ Background does not meet passport photo requirements")
+                    
+                    # Create three columns for stats
+                    stat_cols = st.columns(3)
+                    
+                    # Background Type
+                    with stat_cols[0]:
                         st.markdown(f"""
-                        <div class="metric-container">
-                            <p class="metric-label">Color Variation</p>
-                            <p class="metric-value">{color_stats['color_variation']:.1f}</p>
-                            <small style="color: #888888;">< 20 is good</small>
+                        <div class="stat-box">
+                            <h3>🎨 Background Type</h3>
+                            <p>{color_stats['background_type'].capitalize()}</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    with metric_cols[1]:
+                    # Brightness
+                    with stat_cols[1]:
                         st.markdown(f"""
-                        <div class="metric-container">
-                            <p class="metric-label">Hue Variation</p>
-                            <p class="metric-value">{color_stats['hue_variation']:.1f}</p>
-                            <small style="color: #888888;">< 20 is good</small>
+                        <div class="stat-box">
+                            <h3>💡 Brightness</h3>
+                            <p>{"Good" if color_stats['is_light'] else "Too Dark"}</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    with metric_cols[2]:
+                    # Coverage
+                    with stat_cols[2]:
                         st.markdown(f"""
-                        <div class="metric-container">
-                            <p class="metric-label">Saturation Variation</p>
-                            <p class="metric-value">{color_stats['saturation_variation']:.1f}</p>
-                            <small style="color: #888888;">< 30 is good</small>
+                        <div class="stat-box">
+                            <h3>📏 Coverage</h3>
+                            <p>{color_stats['background_percentage']:.1f}%</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    # Processing Information
-                    st.info(f"⚡ Processing Time: {processing_time:.2f} seconds")
+                    # Detailed Analysis Expander
+                    with st.expander("See Detailed Analysis"):
+                        st.markdown("### 🔍 Technical Details")
+                        
+                        # RGB Values
+                        st.markdown("""
+                        <div class="metric-container">
+                            <p class="metric-label">RGB Color Values</p>
+                            <p class="metric-value">
+                        """, unsafe_allow_html=True)
+                        rgb_values = f"R={color_stats['mean_color'][2]:.1f}, G={color_stats['mean_color'][1]:.1f}, B={color_stats['mean_color'][0]:.1f}"
+                        st.code(rgb_values)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        # Color Variation Metrics
+                        st.markdown("<p class='metric-label'>Color Uniformity Metrics</p>", unsafe_allow_html=True)
+                        metric_cols = st.columns(3)
+                        
+                        with metric_cols[0]:
+                            st.markdown(f"""
+                            <div class="metric-container">
+                                <p class="metric-label">Color Variation</p>
+                                <p class="metric-value">{color_stats['color_variation']:.1f}</p>
+                                <small style="color: #888888;">< 20 is good</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with metric_cols[1]:
+                            st.markdown(f"""
+                            <div class="metric-container">
+                                <p class="metric-label">Hue Variation</p>
+                                <p class="metric-value">{color_stats['hue_variation']:.1f}</p>
+                                <small style="color: #888888;">< 20 is good</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with metric_cols[2]:
+                            st.markdown(f"""
+                            <div class="metric-container">
+                                <p class="metric-label">Saturation Variation</p>
+                                <p class="metric-value">{color_stats['saturation_variation']:.1f}</p>
+                                <small style="color: #888888;">< 30 is good</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        # Processing Information
+                        st.info(f"⚡ Processing Time: {processing_time:.2f} seconds")
     
     except Exception as e:
         st.error(f"Error processing image: {str(e)}")
@@ -353,3 +374,10 @@ else:
         - Sharp focus
         - No digital alterations
     """)
+
+
+
+footer_html = """<div style='text-align: center;'>
+  <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/muhammad-faris-ahmad-faiz-ab9b35212/" target="_blank">Faris</a> and <a href="URL_FOR_TISHAN" target="_blank">Tishan</a></p>
+</div>"""
+st.markdown(footer_html, unsafe_allow_html=True)
