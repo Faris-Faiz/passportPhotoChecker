@@ -1,3 +1,11 @@
 venv/
 models/
 testings.ipynb
+invalid_photos.xlsx
+valid_photos.xlsx
+boxplot to figure out threshold.png
+streamlit_app_modified.py
+documentation.md
+photos/
+__pycache__/
+debug.log
