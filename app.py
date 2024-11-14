@@ -285,12 +285,20 @@ with tab2:
     if uploaded_files:
         # Process Batch button
         if st.button("🔄 Process Batch"):
+            # Create a progress bar and text
+            progress_bar = st.progress(0)
+            progress_text = st.empty()
+            
             with st.spinner("Processing photos..."):
-                excel_file, df = process_batch_photos(uploaded_files, pose_model, seg_model)
+                # Process photos with progress tracking
+                excel_file, df = process_batch_photos(uploaded_files, pose_model, seg_model, 
+                                                    progress_bar=progress_bar,
+                                                    progress_text=progress_text)
                 st.session_state.batch_results = (excel_file, df)
                 
-                # Display results in the UI
-                st.success(f"✅ Processed {len(uploaded_files)} photos")
+                # Ensure progress bar reaches 100%
+                progress_bar.progress(1.0)
+                progress_text.text("✅ Processing complete!")
                 st.dataframe(df)
                 
                 # Provide download button for Excel file

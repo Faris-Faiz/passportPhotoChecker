@@ -6,6 +6,7 @@ import numpy as np
 import io
 import torch
 import pandas as pd
+import streamlit as st
 
 # Fixed class thresholds for pose detection
 class_thresholds = {
@@ -148,12 +149,19 @@ def prepare_image(uploaded_file):
     
     return img
 
-def process_batch_photos(uploaded_files, pose_model, seg_model):
-    """Process multiple photos in batch mode"""
+def process_batch_photos(uploaded_files, pose_model, seg_model, progress_bar=None, progress_text=None):
+    """Process multiple photos in batch mode with optional progress tracking"""
     results = []
+    total_files = len(uploaded_files)
     
-    for file in uploaded_files:
+    for index, file in enumerate(uploaded_files, 1):
         try:
+            # Update progress bar and text if provided
+            if progress_bar:
+                progress_bar.progress(index / total_files)
+            if progress_text:
+                progress_text.text(f"Processing photo {index} of {total_files}: {file.name}")
+            
             # Prepare image
             img = prepare_image(file)
             
@@ -208,7 +216,7 @@ def process_batch_photos(uploaded_files, pose_model, seg_model):
                 'Filename': file.name,
                 'Passport Size': is_correct_size,
                 'Neutral Background': is_neutral_background,
-                'Background Percentage': background_percentage_check,  # Changed to use boolean check
+                'Background Percentage': background_percentage_check,
                 'Face Forward': face_forward_check,
                 'Body Forward': body_forward_check,
                 'Upper Body': upper_body_check,
