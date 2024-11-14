@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+from datetime import datetime
 from PIL import Image
 import numpy as np
 import io
@@ -12,6 +13,11 @@ class_thresholds = {
     "body_forward": 0.3784,
     "Upper_body": 0.5709
 }
+
+def generate_excel_filename(num_files):
+    """Generate Excel filename with current timestamp and number of files processed"""
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"passport_analysis_{current_time}_{num_files}files.xlsx"
 
 def load_models():
     """Load and configure YOLO models for pose and segmentation"""
@@ -107,7 +113,8 @@ def is_neutral_color(image):
     is_neutral = ((is_blue or is_white) and 
                  color_variation < COLOR_VARIATION_THRESHOLD and
                  h_std < HUE_THRESHOLD and 
-                 s_std < SATURATION_THRESHOLD)
+                 s_std < SATURATION_THRESHOLD and
+                 background_percentage < 50) 
     
     return is_neutral, {
         'mean_color': mean_color,
@@ -169,6 +176,7 @@ def process_batch_photos(uploaded_files, pose_model, seg_model):
             
             # Initialize background check result
             is_neutral_background = False
+            background_percentage = 0
             
             # Process segmentation results
             for r in seg_results:
@@ -182,7 +190,16 @@ def process_batch_photos(uploaded_files, pose_model, seg_model):
                 background_only = cv2.bitwise_and(image_bgr, background_mask_3ch)
                 
                 # Check background
-                is_neutral_background, _ = is_neutral_color(background_only)
+                is_neutral_background, background_stats = is_neutral_color(background_only)
+                background_percentage = background_stats['background_percentage']
+            
+            # Pose checks
+            face_forward_check = any(pd['Class'] == 'face_forward' and pd['Confidence'] >= class_thresholds['face_forward'] for pd in pose_data)
+            body_forward_check = any(pd['Class'] == 'body_forward' and pd['Confidence'] >= class_thresholds['body_forward'] for pd in pose_data)
+            upper_body_check = any(pd['Class'] == 'Upper_body' and pd['Confidence'] >= class_thresholds['Upper_body'] for pd in pose_data)
+            
+            # Background Percentage as boolean (True if below 50%, False if above 50%)
+            background_percentage_check = background_percentage < 50
             
             # Overall check (all conditions must be met)
             overall_pass = is_correct_size and is_neutral_background and pose_check
@@ -191,7 +208,10 @@ def process_batch_photos(uploaded_files, pose_model, seg_model):
                 'Filename': file.name,
                 'Passport Size': is_correct_size,
                 'Neutral Background': is_neutral_background,
-                'Proper Pose': pose_check,
+                'Background Percentage': background_percentage_check,  # Changed to use boolean check
+                'Face Forward': face_forward_check,
+                'Body Forward': body_forward_check,
+                'Upper Body': upper_body_check,
                 'Overall': overall_pass
             })
             
@@ -200,7 +220,10 @@ def process_batch_photos(uploaded_files, pose_model, seg_model):
                 'Filename': file.name,
                 'Passport Size': False,
                 'Neutral Background': False,
-                'Proper Pose': False,
+                'Background Percentage': False,
+                'Face Forward': False,
+                'Body Forward': False,
+                'Upper Body': False,
                 'Overall': False
             })
     

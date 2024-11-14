@@ -2,9 +2,10 @@ import streamlit as st
 import time
 from PIL import Image
 import torch
+import pandas as pd
 from utils import (
     load_models, prepare_image, check_image_size, process_batch_photos,
-    analyze_single_photo, class_thresholds
+    analyze_single_photo, class_thresholds, generate_excel_filename
 )
 
 # Set page config
@@ -235,7 +236,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Color Variation</p>
                                         <p class="metric-value">{color_stats['color_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 20 is good</small>
+                                        <small style="color: #888888;">< 25 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -244,7 +245,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Hue Variation</p>
                                         <p class="metric-value">{color_stats['hue_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 20 is good</small>
+                                        <small style="color: #888888;">< 25 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -253,7 +254,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Saturation Variation</p>
                                         <p class="metric-value">{color_stats['saturation_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 30 is good</small>
+                                        <small style="color: #888888;">< 20 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -273,6 +274,7 @@ with tab2:
     with analysis results for all photos.
     """)
     
+    # File uploader
     uploaded_files = st.file_uploader(
         "Choose passport photos to analyze",
         type=["jpg", "jpeg", "png"],
@@ -281,11 +283,28 @@ with tab2:
     )
     
     if uploaded_files:
-        with st.spinner("Processing photos..."):
-            excel_file, df = process_batch_photos(uploaded_files, pose_model, seg_model)
-            
-            # Display results in the UI
-            st.success(f"✅ Processed {len(uploaded_files)} photos")
+        # Process Batch button
+        if st.button("🔄 Process Batch"):
+            with st.spinner("Processing photos..."):
+                excel_file, df = process_batch_photos(uploaded_files, pose_model, seg_model)
+                st.session_state.batch_results = (excel_file, df)
+                
+                # Display results in the UI
+                st.success(f"✅ Processed {len(uploaded_files)} photos")
+                st.dataframe(df)
+                
+                # Provide download button for Excel file
+                st.download_button(
+                    label="📥 Download Excel Report",
+                    data=excel_file,
+                    file_name=generate_excel_filename(len(uploaded_files)),
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        
+        # Show previous results if they exist
+        elif 'batch_results' in st.session_state:
+            excel_file, df = st.session_state.batch_results
+            st.success(f"✅ Previously processed {len(uploaded_files)} photos")
             st.dataframe(df)
             
             # Provide download button for Excel file
@@ -295,8 +314,11 @@ with tab2:
                 file_name="passport_photo_analysis.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
     else:
+        # Reset session state when no files are uploaded
+        if 'batch_results' in st.session_state:
+            st.session_state.batch_results = None
+            
         # Show example/placeholder
         st.info("👆 Upload photos to begin analysis")
         
