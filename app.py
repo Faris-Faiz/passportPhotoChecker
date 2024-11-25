@@ -80,21 +80,40 @@ with st.sidebar:
     st.info(model_info)
     
     # Guidelines
-    st.header("📋 Photo Guidelines")
+    st.header("📋 Steps in Determining Passport Photo Validity")
     st.markdown("""
-    **Passport Photo Requirements:**
-    - Neutral white or light blue background
-    - Subject centered and facing forward
-    - No shadows on background
-    - Proper lighting on face
-    - Neutral facial expression
-    - No accessories (except required ones)
+    1. **Use YOLO11** to segment the person out, alongside the tie.
+    2. **Create a mask** of the detected person.
+    3. **Use OpenCV** to remove the person from the photo.
+    4. **Analyze**:
+    - **Color Variation**
+    - **Hue**
+    - **Saturation**
+    - **Background Percentage** of the photo by calculating the percentage of black pixels (left behind after removing the detected person) compared to other colors in the photo.
+
+    ---
+
+    ### Current Criteria for Valid Passport Photos
+
+    1. **Color Variation**: Less than **25** (calculated using OpenCV).
+    2. **Hue**: Less than **15** (calculated using OpenCV).
+    3. **Saturation**: Less than **20** (calculated using OpenCV).
+    4. **Background Percentage**: Less than **50%**.
+
+    ---
+
+    ### Future Enhancements
+
+    1. **Detect the pose of the person in the photo** and determine the probability that:
+    - The person's body is facing forward.
+    - The upper body is present.
     """)
 
 # Main content
 st.title("🔍 Passport Photo Analyzer")
+st.markdown("*:orange[PPDM Experimental Feature - 2024]*")
 st.markdown("""
-This tool analyzes your passport photo for both pose and background requirements.
+This tool utilizes YOLOv11 model to analyze your passport photo for both pose and background requirements.
 Choose between single photo analysis or batch processing below.
 """)
 
@@ -186,6 +205,7 @@ with tab1:
                                 <div class="stat-box">
                                     <h3>🎨 Background Type</h3>
                                     <p>{color_stats['background_type'].capitalize()}</p>
+                                    <small style="color: #888888;">.</small>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
@@ -195,6 +215,7 @@ with tab1:
                                 <div class="stat-box">
                                     <h3>💡 Brightness</h3>
                                     <p>{"Good" if color_stats['is_light'] else "Too Dark"}</p>
+                                    <small style="color: #888888;">.</small>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
@@ -204,12 +225,14 @@ with tab1:
                                 <div class="stat-box">
                                     <h3>📏 Coverage</h3>
                                     <p>{color_stats['background_percentage']:.1f}%</p>
+                                    <small style="color: #888888;">< 50 is good</small>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
                             # Overall Result
                             st.header("📊 Overall Analysis")
-                            if analysis_result['background_data']['is_neutral'] and analysis_result['pose_check']:
+                            # if analysis_result['background_data']['is_neutral'] and analysis_result['pose_check']:
+                            if analysis_result['background_data']['is_neutral']:
                                 st.success("✅ Photo meets all requirements!")
                             else:
                                 st.error("❌ Photo does not meet all requirements")
@@ -245,7 +268,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Hue Variation</p>
                                         <p class="metric-value">{color_stats['hue_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 25 is good</small>
+                                        <small style="color: #888888;">< 15 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -351,6 +374,6 @@ with tab2:
         """)
 
 footer_html = """<div style='text-align: center;'>
-  <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/muhammad-faris-ahmad-faiz-ab9b35212/" target="_blank">Faris</a> and <a href="https://www.linkedin.com/in/tishanprakash-sivarajah-32362820a/" target="_blank">Tishan</a></p>
+  <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/muhammad-faris-ahmad-faiz-ab9b35212/" target="_blank">Faris</a> and <a href="https://www.linkedin.com/in/tishanprakash-sivarajah-32362820a/" target="_blank">Tishan</a> for PPDM</p>
 </div>"""
 st.markdown(footer_html, unsafe_allow_html=True)

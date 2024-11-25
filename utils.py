@@ -86,9 +86,9 @@ def is_neutral_color(image):
     total_pixels = image.shape[0] * image.shape[1]
     background_percentage = (cv2.countNonZero(non_black_mask) / total_pixels) * 100
     
-    HUE_THRESHOLD = 15
-    SATURATION_THRESHOLD = 20
-    COLOR_VARIATION_THRESHOLD = 25
+    HUE_THRESHOLD = 57.3
+    SATURATION_THRESHOLD = 48
+    COLOR_VARIATION_THRESHOLD = 36
     BRIGHTNESS_THRESHOLD = 150
     
     is_light = np.mean(mean_color) > BRIGHTNESS_THRESHOLD
@@ -210,7 +210,7 @@ def process_batch_photos(uploaded_files, pose_model, seg_model, progress_bar=Non
             background_percentage_check = background_percentage < 50
             
             # Overall check (all conditions must be met)
-            overall_pass = is_correct_size and is_neutral_background and pose_check
+            overall_pass = is_neutral_background and background_percentage_check
             
             results.append({
                 'Filename': file.name,

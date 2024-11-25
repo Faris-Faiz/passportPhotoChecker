@@ -9,3 +9,5 @@ documentation.md
 photos/
 __pycache__/
 debug.log
+/Valid Photos
+/Invalid Photos
