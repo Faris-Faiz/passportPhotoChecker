@@ -84,20 +84,20 @@ with st.sidebar:
     st.markdown("""
     1. **Use YOLO11** to segment the person out, alongside the tie.
     2. **Create a mask** of the detected person.
-    3. **Use OpenCV** to remove the person from the photo.
+    3. **Use OpenCV** to analyze the background using the mask.
     4. **Analyze**:
     - **Color Variation**
     - **Hue**
     - **Saturation**
-    - **Background Percentage** of the photo by calculating the percentage of black pixels (left behind after removing the detected person) compared to other colors in the photo.
+    - **Background Percentage** of the photo by calculating the percentage of background area using the YOLO segmentation mask.
 
     ---
 
     ### Current Criteria for Valid Passport Photos
 
-    1. **Color Variation**: Less than **25** (calculated using OpenCV).
-    2. **Hue**: Less than **15** (calculated using OpenCV).
-    3. **Saturation**: Less than **20** (calculated using OpenCV).
+    1. **Color Variation**: Less than **36** (calculated using OpenCV).
+    2. **Hue**: Less than **57.3** (calculated using OpenCV).
+    3. **Saturation**: Less than **48** (calculated using OpenCV).
     4. **Background Percentage**: Less than **50%**.
 
     ---
@@ -173,8 +173,8 @@ with tab1:
                         # Display background analysis
                         st.subheader("🎨 Background Analysis")
                         
-                        # Create two columns for image display
-                        col1, col2 = st.columns(2)
+                        # Create three columns for image display
+                        col1, col2, col3 = st.columns(3)
                         
                         with col1:
                             st.subheader("📸 Original Image")
@@ -182,7 +182,11 @@ with tab1:
                         
                         if analysis_result['background_data']:
                             with col2:
-                                st.subheader("🎯 Detected Background")
+                                st.subheader("🎯 Person Mask")
+                                st.image(analysis_result['background_data']['mask'], use_column_width=True)
+                            
+                            with col3:
+                                st.subheader("🎨 Background Only")
                                 st.image(analysis_result['background_data']['only_rgb'], use_column_width=True)
                             
                             # Calculate processing time
@@ -259,7 +263,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Color Variation</p>
                                         <p class="metric-value">{color_stats['color_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 25 is good</small>
+                                        <small style="color: #888888;">< 36 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -268,7 +272,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Hue Variation</p>
                                         <p class="metric-value">{color_stats['hue_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 15 is good</small>
+                                        <small style="color: #888888;">< 57.3 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
@@ -277,7 +281,7 @@ with tab1:
                                     <div class="metric-container">
                                         <p class="metric-label">Saturation Variation</p>
                                         <p class="metric-value">{color_stats['saturation_variation']:.1f}</p>
-                                        <small style="color: #888888;">< 20 is good</small>
+                                        <small style="color: #888888;">< 48 is good</small>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 

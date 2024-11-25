@@ -49,32 +49,33 @@ def analyze_pose(image_array, pose_model):
     
     return pose_data
 
-def is_neutral_color(image):
-    """Analyze if the background color is neutral (white or light blue)"""
-    # Create a mask for non-black pixels (actual background)
-    non_black_mask = cv2.inRange(image, np.array([1, 1, 1]), np.array([255, 255, 255]))
+def is_neutral_color(image, mask):
+    """Analyze if the background color is neutral (white or light blue) using YOLO mask"""
+    # Create inverse mask to get background (where mask is 0)
+    background_mask = cv2.bitwise_not(mask)
     
-    if cv2.countNonZero(non_black_mask) == 0:
-        return False, {
-            'mean_color': [0, 0, 0],
-            'color_variation': 0,
-            'is_light': False,
-            'background_percentage': 0,
-            'background_type': 'none'
-        }
+    # Apply mask to get only background pixels
+    background_only = cv2.bitwise_and(image, image, mask=background_mask)
     
-    masked_image = cv2.bitwise_and(image, image, mask=non_black_mask)
-    background_pixels = masked_image[masked_image != 0].reshape(-1, 3)
+    # Calculate background percentage using the mask
+    total_pixels = mask.shape[0] * mask.shape[1]
+    background_pixels = cv2.countNonZero(background_mask)
+    background_percentage = (background_pixels / total_pixels) * 100
+    
+    # Get non-zero background pixels for color analysis
+    non_zero_mask = cv2.cvtColor(background_only, cv2.COLOR_BGR2GRAY) > 0
+    background_pixels = background_only[non_zero_mask].reshape(-1, 3)
     
     if len(background_pixels) == 0:
         return False, {
             'mean_color': [0, 0, 0],
             'color_variation': 0,
             'is_light': False,
-            'background_percentage': 0,
+            'background_percentage': background_percentage,
             'background_type': 'none'
         }
     
+    # Calculate color statistics
     mean_color = np.mean(background_pixels, axis=0)
     hsv_pixels = cv2.cvtColor(background_pixels.reshape(1, -1, 3), cv2.COLOR_BGR2HSV)
     hsv_pixels = hsv_pixels.reshape(-1, 3)
@@ -82,9 +83,6 @@ def is_neutral_color(image):
     h_std = np.std(hsv_pixels[:, 0])
     s_std = np.std(hsv_pixels[:, 1])
     color_variation = np.std(background_pixels, axis=0).mean()
-    
-    total_pixels = image.shape[0] * image.shape[1]
-    background_percentage = (cv2.countNonZero(non_black_mask) / total_pixels) * 100
     
     HUE_THRESHOLD = 57.3
     SATURATION_THRESHOLD = 48
@@ -115,7 +113,7 @@ def is_neutral_color(image):
                  color_variation < COLOR_VARIATION_THRESHOLD and
                  h_std < HUE_THRESHOLD and 
                  s_std < SATURATION_THRESHOLD and
-                 background_percentage < 50) 
+                 background_percentage < 50)
     
     return is_neutral, {
         'mean_color': mean_color,
@@ -143,6 +141,9 @@ def prepare_image(uploaded_file):
     # Convert bytes to numpy array using cv2
     nparr = np.frombuffer(bytes_data, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    if img is None:
+        raise ValueError("Failed to decode image")
     
     # Convert BGR to RGB (cv2 loads as BGR)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -188,17 +189,17 @@ def process_batch_photos(uploaded_files, pose_model, seg_model, progress_bar=Non
             
             # Process segmentation results
             for r in seg_results:
-                background_mask = np.ones(image_bgr.shape[:2], np.uint8) * 255
+                # Create mask from segmentation
+                mask = np.zeros(image_bgr.shape[:2], dtype=np.uint8)
+                if hasattr(r, 'masks') and r.masks is not None:
+                    for seg in r.masks.data:
+                        # Convert mask tensor to numpy array and resize to image dimensions
+                        mask_np = seg.cpu().numpy()
+                        mask_np = cv2.resize(mask_np, (image_bgr.shape[1], image_bgr.shape[0]))
+                        mask = cv2.bitwise_or(mask, (mask_np * 255).astype(np.uint8))
                 
-                for c in r:
-                    contour = c.masks.xy[0].astype(np.int32).reshape(-1, 1, 2)
-                    cv2.drawContours(background_mask, [contour], -1, 0, cv2.FILLED)
-                
-                background_mask_3ch = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
-                background_only = cv2.bitwise_and(image_bgr, background_mask_3ch)
-                
-                # Check background
-                is_neutral_background, background_stats = is_neutral_color(background_only)
+                # Check background using mask
+                is_neutral_background, background_stats = is_neutral_color(image_bgr, mask)
                 background_percentage = background_stats['background_percentage']
             
             # Pose checks
@@ -259,21 +260,25 @@ def analyze_single_photo(img, pil_image, pose_model, seg_model):
     # Process segmentation results
     background_data = None
     for r in results:
-        background_mask = np.ones(image_bgr.shape[:2], np.uint8) * 255
+        # Create mask from segmentation
+        mask = np.zeros(image_bgr.shape[:2], dtype=np.uint8)
+        if hasattr(r, 'masks') and r.masks is not None:
+            for seg in r.masks.data:
+                # Convert mask tensor to numpy array and resize to image dimensions
+                mask_np = seg.cpu().numpy()
+                mask_np = cv2.resize(mask_np, (image_bgr.shape[1], image_bgr.shape[0]))
+                mask = cv2.bitwise_or(mask, (mask_np * 255).astype(np.uint8))
         
-        for c in r:
-            contour = c.masks.xy[0].astype(np.int32).reshape(-1, 1, 2)
-            cv2.drawContours(background_mask, [contour], -1, 0, cv2.FILLED)
-        
-        background_mask_3ch = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
-        background_only = cv2.bitwise_and(image_bgr, background_mask_3ch)
+        # Get background using mask
+        background_mask = cv2.bitwise_not(mask)
+        background_only = cv2.bitwise_and(image_bgr, image_bgr, mask=background_mask)
         background_only_rgb = cv2.cvtColor(background_only, cv2.COLOR_BGR2RGB)
         
-        # Analyze background color
-        is_neutral, color_stats = is_neutral_color(background_only)
+        # Analyze background color using mask
+        is_neutral, color_stats = is_neutral_color(image_bgr, mask)
         
         background_data = {
-            'mask': background_mask_3ch,
+            'mask': mask,
             'only': background_only,
             'only_rgb': background_only_rgb,
             'is_neutral': is_neutral,
